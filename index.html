@@ -277,15 +277,37 @@
       padding: 12px 14px; border-radius: 10px; font-size: 12px; margin: 10px 0 16px; line-height: 1.5;
     }
     .game-toolbar {
-      height: 36px; background: #22222a; display: flex; align-items: center; gap: 8px;
-      padding: 0 12px; border-bottom: 1px solid #333; font-size: 12px;
+      height: 40px; background: #22222a; display: flex; align-items: center; gap: 8px;
+      padding: 0 12px; border-bottom: 1px solid #333; font-size: 12px; flex-shrink: 0; z-index: 2;
     }
     .game-toolbar button {
-      background: #3a3a44; border: 0; color: #fff; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
-      transition: background .12s;
+      background: #3a3a44; border: 0; color: #fff; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
+      transition: background .12s; white-space: nowrap;
     }
     .game-toolbar button:hover { background: #4a4a54; }
-    .urlchip { flex: 1; background: #1a1a20; padding: 5px 10px; border-radius: 6px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    .game-toolbar button.primary { background: var(--accent); font-weight: 600; }
+    .game-toolbar button.primary:hover { background: var(--accent-hover); }
+    .urlchip { flex: 1; background: #1a1a20; padding: 5px 10px; border-radius: 6px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; min-width: 0; }
+    .game-frame-wrap { position: absolute; inset: 40px 0 0 0; background: #0a0a0e; }
+    .game-frame-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #0a0a0e; }
+    .game-fallback {
+      position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px; padding: 24px; text-align: center; background: #0a0a0e; z-index: 3;
+      opacity: 0; pointer-events: none; transition: opacity .3s;
+    }
+    .game-fallback.show { opacity: 1; pointer-events: auto; }
+    .game-fallback h3 { font-size: 18px; font-weight: 650; }
+    .game-fallback p { font-size: 13px; color: var(--muted); max-width: 320px; line-height: 1.5; }
+    .game-fallback .big-btn {
+      margin-top: 8px; background: var(--accent); color: #fff; border: 0; padding: 12px 28px;
+      border-radius: 10px; font-weight: 650; font-size: 15px; cursor: pointer;
+    }
+    .game-fallback .big-btn:hover { background: var(--accent-hover); }
+    .game-loading {
+      position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; background: #0a0a0e; z-index: 2; color: #888; font-size: 13px;
+    }
+    .game-loading .spinner { width: 28px; height: 28px; border: 3px solid #2a2a32; border-top-color: #fff; border-radius: 50%; animation: spin 0.75s linear infinite; }
 
     /* Boot */
     #boot {
@@ -400,7 +422,7 @@
       {
         id: 'roblox', name: 'Roblox', cat: 'Platform', emoji: '🧱', color: '#e2231a',
         url: 'https://nowgg.fun/apps/a/19900/b.html',
-        icon: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Roblox_player_icon_black.svg/240px-Roblox_player_icon_black.svg.png'
+        icon: 'https://m.media-amazon.com/images/I/21aoUPG3svL.png'
       },
       {
         id: 'fallguys', name: 'Fall Guys', cat: 'Party', emoji: '🍬', color: '#ff66c4',
@@ -726,20 +748,69 @@
         bodyHTML: `
           <div class="game-toolbar">
             <button onclick="reloadGame('${g.id}')">Reload</button>
-            <button onclick="window.open('${g.url}','_blank')">Pop out</button>
+            <button class="primary" onclick="window.open('${g.url}','_blank')">Pop out</button>
             <button onclick="fullscreenGame('${g.id}')">Fullscreen</button>
             <div class="urlchip">${g.url}</div>
           </div>
-          <iframe id="frame-${g.id}" src="${g.url}" allow="fullscreen; autoplay; gamepad; clipboard-write; encrypted-media" allowfullscreen></iframe>`
+          <div class="game-frame-wrap">
+            <div class="game-loading" id="load-${g.id}">
+              <div class="spinner"></div>
+              <div>Loading ${g.name}…</div>
+            </div>
+            <div class="game-fallback" id="fb-${g.id}">
+              <div style="font-size:40px">${g.emoji || '🎮'}</div>
+              <h3>Game won’t embed</h3>
+              <p>This cloud host blocks being shown inside another page. Use <b>Pop out</b> to play in a new tab.</p>
+              <button class="big-btn" onclick="window.open('${g.url}','_blank')">Open ${g.name}</button>
+              <button class="action ghost" style="margin-top:8px" onclick="document.getElementById('fb-${g.id}').classList.remove('show')">Dismiss</button>
+            </div>
+            <iframe id="frame-${g.id}" src="${g.url}" allow="fullscreen; autoplay; gamepad; clipboard-write; encrypted-media" allowfullscreen referrerpolicy="no-referrer"></iframe>
+          </div>`
       });
+
+      // now.gg and many mirrors set X-Frame-Options / CSP → black iframe.
+      // Show a clear fallback after a short wait so the window is never a dead black box.
+      const loadEl = document.getElementById('load-' + g.id);
+      const fbEl = document.getElementById('fb-' + g.id);
+      const frame = document.getElementById('frame-' + g.id);
+      let settled = false;
+
+      function showFallback() {
+        if (settled) return;
+        settled = true;
+        if (loadEl) loadEl.style.display = 'none';
+        if (fbEl) fbEl.classList.add('show');
+      }
+      function hideLoading() {
+        if (loadEl) loadEl.style.display = 'none';
+      }
+
+      frame.addEventListener('load', () => {
+        hideLoading();
+        // Cross-origin: can't inspect body. Auto-show fallback after grace period
+        // so users aren't stuck staring at black when the host refuses embedding.
+        setTimeout(showFallback, 3500);
+      });
+      frame.addEventListener('error', showFallback);
+      setTimeout(() => {
+        hideLoading();
+        showFallback();
+      }, 9000);
     }
 
     function reloadGame(id) {
-      const f = document.getElementById('frame-'+id);
-      if (f) f.src = f.src;
+      const f = document.getElementById('frame-' + id);
+      const loadEl = document.getElementById('load-' + id);
+      const fbEl = document.getElementById('fb-' + id);
+      if (fbEl) fbEl.classList.remove('show');
+      if (loadEl) loadEl.style.display = 'flex';
+      if (f) {
+        // reset settled by re-binding is messy; just reload and re-show loading
+        f.src = f.src;
+      }
     }
     function fullscreenGame(id) {
-      const f = document.getElementById('frame-'+id);
+      const f = document.getElementById('frame-' + id);
       if (f && f.requestFullscreen) f.requestFullscreen();
       else if (f && f.webkitRequestFullscreen) f.webkitRequestFullscreen();
     }
