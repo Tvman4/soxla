@@ -736,7 +736,6 @@
       if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) {
         e.preventDefault();
         const ov = document.getElementById('docs-overlay');
-        showDocsOverlay(!ov.classList.1stChild && !ov.classList.contains('show'));
         showDocsOverlay(!ov.classList.contains('show'));
       }
     });
@@ -749,7 +748,7 @@
     }
     applyDocsCloak(load('cloakDocs', false));
     buildDesktop();
-    setTimeout(() => document.getElementById('boot').classList.add('hide'), 1000);
+    setTimeout(() => document.getElementById('boot').classList.add('hide'), 500);
   </script>
 </body>
 </html>
